@@ -64,7 +64,7 @@
         {
           "type": "git",
           "url": "https://github.com/Chispes/cosmic-tailscale.git",
-          "commit": "b85e263aa657715adaeccff62dd9351f88e7050b"
+          "commit": "fbca0c9a73d05483cdee813c7cf7f83157e8e92f"
         },
         "cargo-sources.json"
       ]
