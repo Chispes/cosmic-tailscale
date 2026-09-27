@@ -124,7 +124,7 @@ impl cosmic::Application for AppModel {
     }
     fn on_close_requested(&self, id: Id) -> Option<Message> { Some(Message::PopupClosed(id)) }
     fn view(&self) -> Element<'_, Message> {
-        let icon = widget::icon::from_svg_bytes(include_bytes!("../resources/panel-symbolic.svg").as_slice()).symbolic(true);
+        let icon = widget::icon::from_svg_bytes(include_bytes!("../resources/icon.svg").as_slice()).symbolic(true);
         self.core.applet.icon_button_from_handle(icon).on_press(Message::TogglePopup).into()
     }
     fn view_window(&self, _: Id) -> Element<'_, Message> {
