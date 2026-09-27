@@ -30,7 +30,7 @@ action-complete = Actualizado
 error-missing = Instala Tailscale en Fedora (dnf install tailscale).
 error-daemon = Inicia el servicio del anfitrión: systemctl enable --now tailscaled.
 error-operator = Acceso a perfiles denegado. En una terminal del anfitrión ejecuta: sudo tailscale set --operator=$(id -un)
-error-access = Acceso denegado por el servicio Tailscale.
+error-access = Tailscale denegó la operación. Si administras este equipo, habilita tu usuario como operador en una terminal: sudo tailscale set --operator=$(id -un). Luego pulsa Actualizar.
 error-unsupported = Esta versión de Tailscale no admite el comando.
 error-timeout = Tailscale no respondió a tiempo.
 error-command = Error de Tailscale

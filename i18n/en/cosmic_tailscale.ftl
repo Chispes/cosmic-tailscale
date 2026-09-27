@@ -30,7 +30,7 @@ action-complete = Updated
 error-missing = Install Tailscale on Fedora first (dnf install tailscale).
 error-daemon = Start the host daemon: systemctl enable --now tailscaled.
 error-operator = Profiles access denied. In a host terminal run: sudo tailscale set --operator=$(id -un)
-error-access = Access denied by the Tailscale daemon.
+error-access = Tailscale denied this operation. If you administer this device, enable your user as operator in a terminal: sudo tailscale set --operator=$(id -un). Then refresh.
 error-unsupported = This Tailscale version does not support the requested command.
 error-timeout = Tailscale did not respond in time.
 error-command = Tailscale error
