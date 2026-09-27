@@ -32,7 +32,7 @@ flatpak run io.github.chispes.CosmicTailscale
 
 Si el daemon usa un socket distinto, el manifiesto requiere una adaptación explícita; el Flatpak no administra el servicio de sistema. La compilación local sobre una instalación Flatpak sin capacidad de restaurar etiquetas SELinux de BaseApp puede fallar en `flatpak build-init` con `lsetxattr(security.selinux): Operation not supported`; comprueba el host de compilación antes de distribuir el resultado. El manifiesto obtiene el código fuente de una revisión fijada del repositorio público.
 
-**No está publicado en Flathub.** Su política actual excluye las aplicaciones exclusivamente de bandeja/panel y las que dependen de componentes del anfitrión, y prohíbe manifiestos generados con IA y solicitudes de publicación automatizadas por agentes. Este proyecto y su manifiesto se han desarrollado con asistencia de IA; no se enviará una solicitud incompatible con esa política. La distribución nativa y la compilación local del Flatpak siguen disponibles.
+**No está publicado en Flathub.** Sus [requisitos de inclusión](https://docs.flathub.org/docs/for-app-authors/requirements) excluyen las aplicaciones exclusivamente de bandeja/panel y las que dependen de componentes del anfitrión; su política sobre IA prohíbe manifiestos generados con IA y solicitudes de publicación automatizadas por agentes. Este proyecto y su manifiesto se han desarrollado con asistencia de IA; no se enviará una solicitud incompatible con esa política. La distribución nativa y la compilación local del Flatpak siguen disponibles.
 
 ## Desarrollo
 
