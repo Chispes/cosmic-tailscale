@@ -15,6 +15,8 @@ pub struct AppModel {
     accounts: Vec<Account>,
     exit_nodes: Vec<ExitNode>,
     error: Option<String>,
+    warning: Option<String>,
+    action_error: Option<String>,
     notice: Option<String>,
     busy: bool,
     refreshing: bool,
@@ -48,6 +50,7 @@ fn error_text(error: &CliError) -> String {
 
 async fn load() -> Result<Loaded, CliError> {
     let status = tailscale::status().await?;
+    if !status.running() { return Ok((status, Vec::new(), Vec::new(), None)); }
     let (accounts, account_error) = match tailscale::accounts().await {
         Ok(items) => (items, None), Err(err) => (Vec::new(), Some(error_text(&err))),
     };
@@ -62,6 +65,38 @@ async fn load() -> Result<Loaded, CliError> {
     Ok((status, accounts, nodes, warning))
 }
 
+fn surface<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    widget::container(content)
+        .width(cosmic::iced::Length::Fill)
+        .padding(12)
+        .style(|theme: &cosmic::Theme| {
+            let cosmic = theme.cosmic();
+            let component = &cosmic.background(theme.transparent).component;
+            let mut color: cosmic::iced::Color = component.base.into();
+            if theme.transparent { color.a = 0.4; }
+            cosmic::iced::widget::container::Style {
+                text_color: Some(component.on.into()),
+                background: Some(cosmic::iced::Background::Color(color)),
+                border: cosmic::iced::Border {
+                    radius: cosmic.corner_radii.radius_s.into(),
+                    width: 1.0,
+                    color: component.divider.into(),
+                },
+                ..Default::default()
+            }
+        })
+        .into()
+}
+
+fn section<'a>(label: String, content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+    widget::Column::new()
+        .spacing(8)
+        .width(cosmic::iced::Length::Fill)
+        .push(widget::text::heading(label))
+        .push(surface(content))
+        .into()
+}
+
 impl AppModel {
     fn refresh(&mut self) -> Task<cosmic::Action<Message>> {
         if self.refreshing || self.busy { return Task::none(); }
@@ -69,7 +104,7 @@ impl AppModel {
         cosmic::task::future(async { cosmic::Action::App(Message::Refreshed(Box::new(load().await))) })
     }
     fn button(&self, label: String, action: Message) -> Element<'_, Message> {
-        let button = widget::button::text(label);
+        let button = widget::button::text(label).width(cosmic::iced::Length::Fill);
         if self.busy || self.refreshing { button.into() } else { button.on_press(action).into() }
     }
 }
@@ -89,63 +124,99 @@ impl cosmic::Application for AppModel {
     }
     fn on_close_requested(&self, id: Id) -> Option<Message> { Some(Message::PopupClosed(id)) }
     fn view(&self) -> Element<'_, Message> {
-        let icon = if self.error.is_some() { "dialog-error-symbolic" } else if self.status.as_ref().is_some_and(Status::running) { "network-vpn-symbolic" } else { "network-vpn-disconnected-symbolic" };
-        self.core.applet.icon_button(icon).on_press(Message::TogglePopup).into()
+        let icon = widget::icon::from_svg_bytes(include_bytes!("../resources/panel-symbolic.svg").as_slice()).symbolic(true);
+        self.core.applet.icon_button_from_handle(icon).on_press(Message::TogglePopup).into()
     }
     fn view_window(&self, _: Id) -> Element<'_, Message> {
-        let mut list = widget::list_column()
-            .add(widget::text::heading(fl!("app-title")))
-            .add(widget::text::body(match &self.status {
-                Some(status) if status.running() => fl!("state-running"),
-                Some(status) => match status.backend_state.as_str() {
-                    "Stopped" => fl!("state-stopped"), "NeedsLogin" => fl!("state-login"),
-                    "NeedsMachineAuth" => fl!("state-machine-auth"), "Starting" => fl!("state-starting"),
-                    other => format!("{}: {other}", fl!("state-unknown")),
-                },
-                None => fl!("state-loading"),
-            }));
-        if let Some(err) = &self.error { list = list.add(widget::text::body(err.clone())); }
-        if let Some(notice) = &self.notice { list = list.add(widget::text::body(notice.clone())); }
+        use cosmic::iced::Length;
+
+        let refresh = widget::button::text(fl!("refresh"));
+        let refresh = if self.busy || self.refreshing { refresh } else { refresh.on_press(Message::Refresh) };
+        let header = widget::Row::new()
+            .spacing(8)
+            .align_y(cosmic::iced::Alignment::Center)
+            .push(widget::text::title4(fl!("app-title")).width(Length::Fill))
+            .push(refresh);
+        let state = match &self.status {
+            Some(status) if status.running() => fl!("state-running"),
+            Some(status) => match status.backend_state.as_str() {
+                "Stopped" => fl!("state-stopped"), "NeedsLogin" => fl!("state-login"),
+                "NeedsMachineAuth" => fl!("state-machine-auth"), "Starting" => fl!("state-starting"),
+                other => format!("{}: {other}", fl!("state-unknown")),
+            },
+            None => fl!("state-loading"),
+        };
+        let mut connection = widget::Column::new().spacing(8).width(Length::Fill)
+            .push(widget::text::title4(state).width(Length::Fill));
+        if let Some(err) = &self.error { connection = connection.push(widget::text::body(err.clone()).width(Length::Fill)); }
+        if let Some(err) = &self.action_error { connection = connection.push(widget::text::body(err.clone()).width(Length::Fill)); }
+        if let Some(notice) = &self.notice { connection = connection.push(widget::text::body(notice.clone()).width(Length::Fill)); }
         if let Some(status) = &self.status {
             if status.running() {
-                list = list.add(self.button(fl!("disconnect"), Message::Act(Operation::Down)));
-            } else if let Some(url) = status.auth_link() {
-                if !url.is_empty() { list = list.add(self.button(fl!("authorize"), Message::Act(Operation::OpenAuth))); }
+                connection = connection.push(self.button(fl!("disconnect"), Message::Act(Operation::Down)));
+            } else if status.auth_link().is_some() {
+                connection = connection.push(self.button(fl!("authorize"), Message::Act(Operation::OpenAuth)));
             } else if status.backend_state == "Stopped" || status.backend_state == "NeedsLogin" {
-                list = list.add(self.button(fl!("connect"), Message::Act(Operation::Up)));
-            }
-            if status.running() {
-                list = list.add(widget::text::title3(fl!("accounts")));
-                for account in &self.accounts {
-                    let prefix = if account.selected { "✓ " } else { "" };
-                    list = list.add(self.button(format!("{prefix}{}", account.label()), Message::Act(Operation::Switch(account.id.clone()))));
-                }
-                list = list.add(widget::text::title3(fl!("exit-nodes")))
-                    .add(self.button(fl!("exit-none"), Message::Act(Operation::Exit(String::new()))));
-                for (_, peer) in status.online_peers().filter(|(_, p)| p.exit_node_option) {
-                    if let Some(ip) = peer.tailscale_ips.first() {
-                        list = list.add(self.button(format!("{} ({ip})", peer.name()), Message::Act(Operation::Exit(ip.clone()))));
-                    }
-                }
-                let mullvad: Vec<_> = self.exit_nodes.iter().filter(|node| node.hostname.ends_with(".mullvad.ts.net") && node.city != "Any").collect();
-                if !mullvad.is_empty() { list = list.add(widget::text::title3(fl!("mullvad-regions"))); }
-                for node in mullvad { list = list.add(self.button(node.region(), Message::Act(Operation::Exit(node.ip.clone())))); }
-                list = list.add(widget::text::title3(fl!("devices")));
-                let mut peers: Vec<_> = status.online_peers().collect();
-                peers.sort_by(|(_, a), (_, b)| a.name().cmp(b.name()));
-                for (id, peer) in peers {
-                    list = list.add(widget::text::body(peer.name().to_owned()));
-                    if let Some(ip) = peer.tailscale_ips.first() { list = list.add(self.button(format!("{}: {ip}", fl!("copy-ip")), Message::Copy(ip.clone()))); }
-                    if !peer.dns_name.is_empty() { list = list.add(self.button(format!("{}: {}", fl!("copy-dns"), peer.dns_name.trim_end_matches('.')), Message::Copy(peer.dns_name.trim_end_matches('.').into()))); }
-                    list = list.add(self.button(fl!("copy-name"), Message::Copy(peer.name().into())));
-                    if status.file_sharing() && peer.can_receive() {
-                        list = list.add(self.button(fl!("send-file"), Message::Send(id.clone())));
-                    }
-                }
+                connection = connection.push(self.button(fl!("connect"), Message::Act(Operation::Up)));
             }
         }
-        list = list.add(self.button(fl!("refresh"), Message::Refresh));
-        self.core.applet.popup_container(widget::scrollable(list).height(550)).into()
+        let mut list = widget::Column::new().spacing(14).padding(16).width(Length::Fill)
+            .push(header)
+            .push(surface(connection));
+        if let Some(status) = self.status.as_ref().filter(|status| status.running()) {
+            let mut accounts = widget::Column::new().spacing(8).width(Length::Fill);
+            if let Some(warning) = &self.warning {
+                accounts = accounts.push(widget::text::body(warning.clone()).width(Length::Fill));
+            }
+            if self.accounts.is_empty() {
+                accounts = accounts.push(widget::text::body(fl!("accounts-empty")).width(Length::Fill));
+            }
+            for account in &self.accounts {
+                let prefix = if account.selected { "✓ " } else { "" };
+                accounts = accounts.push(self.button(format!("{prefix}{}", account.label()), Message::Act(Operation::Switch(account.id.clone()))));
+            }
+            list = list.push(section(fl!("accounts"), accounts));
+
+            let mut nodes = widget::Column::new().spacing(8).width(Length::Fill)
+                .push(self.button(fl!("exit-none"), Message::Act(Operation::Exit(String::new()))));
+            for (_, peer) in status.online_peers().filter(|(_, peer)| peer.exit_node_option) {
+                if let Some(ip) = peer.tailscale_ips.first() {
+                    nodes = nodes.push(self.button(format!("{} ({ip})", peer.name()), Message::Act(Operation::Exit(ip.clone()))));
+                }
+            }
+            let mullvad: Vec<_> = self.exit_nodes.iter().filter(|node| node.hostname.ends_with(".mullvad.ts.net") && node.city != "Any").collect();
+            if !mullvad.is_empty() { nodes = nodes.push(widget::text::heading(fl!("mullvad-regions"))); }
+            for node in mullvad {
+                nodes = nodes.push(self.button(node.region(), Message::Act(Operation::Exit(node.ip.clone()))));
+            }
+            list = list.push(section(fl!("exit-nodes"), nodes));
+
+            list = list.push(widget::text::heading(fl!("devices")));
+            let mut peers: Vec<_> = status.online_peers().collect();
+            peers.sort_by(|(_, a), (_, b)| a.name().cmp(b.name()));
+            if peers.is_empty() {
+                list = list.push(surface(widget::text::body(fl!("devices-empty")).width(Length::Fill)));
+            }
+            for (id, peer) in peers {
+                let mut controls = widget::Column::new().spacing(8).width(Length::Fill)
+                    .push(widget::text::heading(peer.name().to_owned()).width(Length::Fill));
+                if let Some(ip) = peer.tailscale_ips.first() {
+                    controls = controls.push(self.button(format!("{}: {ip}", fl!("copy-ip")), Message::Copy(ip.clone())));
+                }
+                if !peer.dns_name.is_empty() {
+                    controls = controls.push(self.button(format!("{}: {}", fl!("copy-dns"), peer.dns_name.trim_end_matches('.')), Message::Copy(peer.dns_name.trim_end_matches('.').into())));
+                }
+                controls = controls.push(self.button(fl!("copy-name"), Message::Copy(peer.name().into())));
+                if status.file_sharing() && peer.can_receive() {
+                    controls = controls.push(self.button(fl!("send-file"), Message::Send(id.clone())));
+                }
+                list = list.push(surface(controls));
+            }
+        }
+        let body = widget::container(widget::scrollable(list).width(Length::Fill).height(Length::Shrink))
+            .width(Length::Fixed(360.0))
+            .max_height(620.0);
+        self.core.applet.popup_container(body).into()
     }
     fn subscription(&self) -> Subscription<Message> {
         let ticks = time::every(Duration::from_secs(30)).map(|_| Message::Tick);
@@ -166,13 +237,15 @@ impl cosmic::Application for AppModel {
                 match *result {
                     Ok((status, accounts, nodes, warning)) => {
                         if status.running() { self.pending_login = false; }
-                        self.status = Some(status); self.accounts = accounts; self.exit_nodes = nodes; self.error = warning;
+                        self.status = Some(status); self.accounts = accounts; self.exit_nodes = nodes;
+                        self.warning = warning; self.error = None;
                     }
-                    Err(error) => { self.error = Some(error_text(&error)); self.status = None; }
+                    Err(error) => { self.error = Some(error_text(&error)); self.warning = None; self.status = None; }
                 }
             }
             Message::Act(action) => {
                 if self.busy || self.refreshing { return Task::none(); }
+                self.action_error = None;
                 self.busy = true;
                 if matches!(action, Operation::Up | Operation::OpenAuth) { self.pending_login = true; }
                 let auth_url = self.status.as_ref().and_then(Status::auth_link).map(str::to_owned);
@@ -195,11 +268,12 @@ impl cosmic::Application for AppModel {
             }
             Message::Acted(result) => {
                 self.busy = false;
-                match result { Ok(_) => { self.notice = Some(if self.pending_login { fl!("auth-pending") } else { fl!("action-complete") }); self.error = None; }, Err(error) => { self.pending_login = false; self.error = Some(error_text(&error)); self.notice = None; } }
+                match result { Ok(_) => { self.notice = Some(if self.pending_login { fl!("auth-pending") } else { fl!("action-complete") }); self.action_error = None; }, Err(error) => { self.pending_login = false; self.action_error = Some(error_text(&error)); self.notice = None; } }
                 return self.refresh();
             }
             Message::Send(id) => {
                 if self.busy || self.refreshing { return Task::none(); }
+                self.action_error = None;
                 let Some(status) = self.status.as_ref().filter(|s| s.running() && s.file_sharing()) else { return Task::none(); };
                 let Some(peer) = status.peer.get(&id).filter(|p| p.can_receive()) else { return Task::none(); };
                 let destination = if peer.dns_name.is_empty() { peer.name().to_owned() } else { peer.dns_name.trim_end_matches('.').to_owned() };
@@ -209,7 +283,7 @@ impl cosmic::Application for AppModel {
             }
             Message::Sent(result) => {
                 self.busy = false;
-                match result { Ok(Some(_)) => self.notice = Some(fl!("send-complete")), Ok(None) => {}, Err(error) => self.error = Some(error_text(&error)) }
+                match result { Ok(Some(_)) => self.notice = Some(fl!("send-complete")), Ok(None) => {}, Err(error) => self.action_error = Some(error_text(&error)) }
                 return self.refresh();
             }
             Message::Received(result) => match result {
@@ -234,7 +308,7 @@ impl cosmic::Application for AppModel {
                 return if let Some(id) = self.popup.take() { destroy_popup(id) } else {
                     let id = Id::unique(); self.popup = Some(id);
                     let mut settings = self.core.applet.get_popup_settings(self.core.main_window_id().unwrap(), id, None, None, None);
-                    settings.positioner.size_limits = Limits::NONE.max_width(372.0).min_width(300.0).min_height(200.0).max_height(1080.0);
+                    settings.positioner.size_limits = Limits::NONE.min_width(360.0).max_width(360.0).min_height(1.0).max_height(640.0);
                     get_popup(settings)
                 };
             }

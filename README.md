@@ -10,6 +10,8 @@ Applet para el panel COSMIC que controla una instalación **existente** de Tails
 
 El applet muestra errores si el daemon falta, el usuario no tiene permiso o una operación falla. Sin autenticación, el botón Conectar inicia Tailscale y después muestra el enlace de autorización que proporciona el daemon; esperar a completar el inicio de sesión no se considera un fallo. La lista de dispositivos y Taildrop requieren una sesión Tailscale activa y dispositivos compatibles. Los archivos recibidos quedan en Descargas; ante un nombre ocupado, se añade un sufijo numérico en vez de sobrescribirlo. La recepción funciona solo mientras el applet se ejecuta en el panel. Las transferencias interrumpidas permanecen en `Descargas/.cosmic-tailscale-incoming/active-*` y **no** se publican como archivos terminados: revísalas antes de eliminarlas. Los lotes completados `ready-*` sí se recuperan tras reiniciar el applet.
 
+Si aparece **«Acceso a perfiles denegado»**, `tailscale status --json` todavía puede funcionar: consultar el estado no implica tener permiso para listar cuentas o modificar la conexión. El applet mantiene visibles el estado y los controles que sí están disponibles; no cambia permisos por su cuenta. Un administrador puede ejecutar en el anfitrión `sudo tailscale set --operator="$(id -un)"`, y después pulsar **Actualizar**. El icono del panel es un SVG simbólico integrado en el binario, sin depender de un tema de iconos externo; el popup utiliza tarjetas y márgenes adaptados al estilo COSMIC.
+
 ## Instalación nativa
 
 Con Rust, Cargo, `just` y las dependencias de desarrollo de libcosmic para tu distribución:
