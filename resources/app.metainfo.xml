@@ -5,12 +5,16 @@
   <project_license>MIT</project_license>
   <name>Cosmic Tailscale</name>
   <summary>Manage Tailscale from the COSMIC panel</summary>
+  <developer id="io.github.chispes">
+    <name>Chispes</name>
+  </developer>
   <description>
     <p>A COSMIC panel applet for managing an existing Tailscale installation. View connection state, connect or disconnect, change accounts and exit nodes, and send or receive files with Taildrop.</p>
     <p>The native package uses the host Tailscale CLI. The Flatpak bundles the CLI and connects to the host tailscaled socket; it does not install or start the daemon.</p>
   </description>
   <icon type="stock">io.github.chispes.CosmicTailscale</icon>
   <url type="vcs-browser">https://github.com/Chispes/cosmic-tailscale</url>
+  <url type="homepage">https://github.com/Chispes/cosmic-tailscale</url>
   <launchable type="desktop-id">io.github.chispes.CosmicTailscale.desktop</launchable>
   <provides>
     <id>com.system76.CosmicApplet</id>
