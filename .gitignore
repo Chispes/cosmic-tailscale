@@ -1,0 +1,10 @@
+.cargo/
+*.pdb
+**/*.rs.bk
+debug/
+target/
+vendor/
+vendor.tar
+.flatpak-builder/
+build-dir/
+.install-test/

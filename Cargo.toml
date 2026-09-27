@@ -1,0 +1,55 @@
+[package]
+name = "cosmic-tailscale"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Manage Tailscale from the COSMIC panel"
+repository = "https://github.com/Chispes/cosmic-tailscale"
+
+[build-dependencies]
+xdgen = "0.1"
+
+[dependencies]
+i18n-embed-fl = "0.10"
+rust-embed = "8.11"
+tokio = { version = "1.52.0", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+url = "2"
+ashpd = { version = "0.12", default-features = false, features = ["tokio"] }
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+flatpak = []
+
+[dependencies.i18n-embed]
+version = "0.16"
+features = ["fluent-system", "desktop-requester"]
+
+[dependencies.libcosmic]
+git = "https://github.com/pop-os/libcosmic.git"
+# See https://github.com/pop-os/libcosmic/blob/master/Cargo.toml for available features.
+features = [
+    # Applet support
+    "applet",
+    "applet-token",
+    # Uses cosmic-settings-daemon to watch for config file changes
+    "dbus-config",
+    # Support creating additional application windows.
+    "multi-window",
+    # Uses tokio as the executor for the runtime
+    "tokio",
+    # Add Wayland support to winit
+    "wayland",
+    # Windowing support for X11, Windows, Mac, & Redox
+    "winit",
+]
+
+# Uncomment to test a locally-cloned libcosmic
+# [patch.'https://github.com/pop-os/libcosmic']
+# libcosmic = { path = "../libcosmic" }
+# cosmic-config = { path = "../libcosmic/cosmic-config" }
+# cosmic-theme = { path = "../libcosmic/cosmic-theme" }

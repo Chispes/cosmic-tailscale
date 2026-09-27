@@ -1,0 +1,14 @@
+[Desktop Entry]
+Name=Cosmic Tailscale
+Comment=Manage Tailscale from the COSMIC panel
+Type=Application
+Icon=io.github.chispes.CosmicTailscale
+Exec=cosmic-tailscale
+Terminal=false
+StartupNotify=true
+Categories=COSMIC
+Keywords=COSMIC
+NoDisplay=true
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
+MimeType=

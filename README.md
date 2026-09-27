@@ -1,0 +1,37 @@
+# Cosmic Tailscale
+
+Applet para el panel COSMIC que controla una instalación **existente** de Tailscale: estado y dispositivos, conectar/desconectar, cambiar cuenta, seleccionar nodo de salida (incluidas regiones Mullvad cuando están disponibles), copiar IP, abrir la URL de autenticación y enviar/recibir archivos con Taildrop. No instala ni inicia `tailscaled`.
+
+## Requisitos
+
+- COSMIC sobre Wayland y Tailscale instalado y en ejecución en el anfitrión.
+- Permisos para manejar el daemon: `tailscale status --json` debe funcionar para el usuario; para perfiles y cambios de conexión puede ser necesario configurar un operador de Tailscale (`sudo tailscale set --operator="$USER"`) según la política del equipo. Esta orden modifica los permisos del daemon: aplícala solo si administras el equipo.
+- Para recibir con Taildrop, una carpeta de Descargas definida por XDG (`xdg-user-dir DOWNLOAD`) o `$HOME/Downloads`.
+
+El applet muestra errores si el daemon falta, el usuario no tiene permiso o una operación falla. Sin autenticación, el botón Conectar solicita la URL de inicio de sesión, que se abre fuera del applet. La lista de dispositivos y Taildrop requieren una sesión Tailscale activa y dispositivos compatibles. Los archivos recibidos quedan en Descargas; ante un nombre ocupado, se añade un sufijo numérico en vez de sobrescribirlo.
+
+## Instalación nativa
+
+Con Rust, Cargo, `just` y las dependencias de desarrollo de libcosmic para tu distribución:
+
+```sh
+just build-release
+just install
+```
+
+El destino predeterminado es `$HOME/.local`; configura `rootdir` y `prefix` para instalar en otro lugar. En COSMIC, añade «Cosmic Tailscale» desde el selector de applets del panel. `just uninstall` elimina solo los archivos instalados por la receta. Para Fedora, `just dist` crea un tarball con dependencias vendorizadas y `rpmbuild -ba packaging/cosmic-tailscale.spec` produce un RPM que declara la dependencia de `tailscale`. La compilación RPM usa fuentes vendorizadas sin acceso a la red.
+
+## Flatpak
+
+El manifiesto `packaging/io.github.chispes.CosmicTailscale.json` fija las fuentes Rust y empaqueta únicamente el cliente `tailscale`; utiliza el daemon del anfitrión mediante `/run/tailscale/tailscaled.sock`. Permisos: Wayland, IPC, `/run/tailscale` y Descargas. Los selectores de archivos y las notificaciones usan portales. Es necesario tener instalado `com.system76.Cosmic.BaseApp//stable`, el runtime/SDK Freedesktop 25.08 y la extensión Rust estable de ese SDK.
+
+```sh
+flatpak-builder --user --install --force-clean build-dir packaging/io.github.chispes.CosmicTailscale.json
+flatpak run io.github.chispes.CosmicTailscale
+```
+
+Si el daemon usa un socket distinto, el manifiesto requiere una adaptación explícita; el Flatpak no administra el servicio de sistema. La compilación local sobre una instalación Flatpak sin capacidad de restaurar etiquetas SELinux de BaseApp puede fallar en `flatpak build-init` con `lsetxattr(security.selinux): Operation not supported`; comprueba el host de compilación antes de distribuir el resultado. El ID del manifiesto apunta a `github.com/Chispes`; la publicación en Flathub requiere el repositorio de origen público, revisión del manifiesto y aceptación de la solicitud por sus mantenedores. El manifiesto local usa fuentes de este árbol para facilitar la compilación desde un checkout.
+
+## Desarrollo
+
+`cargo test --locked` ejecuta las pruebas del CLI y del receptor; `just check` ejecuta Clippy. `just run` inicia el applet nativo. Las traducciones Fluent están en `i18n/en` e `i18n/es`. Licencia MIT; el binario de Tailscale incluido en el Flatpak conserva su propia licencia en `/app/share/licenses/tailscale/`.

@@ -1,0 +1,73 @@
+{
+  "id": "io.github.chispes.CosmicTailscale",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "25.08",
+  "base": "com.system76.Cosmic.BaseApp",
+  "base-version": "stable",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "cosmic-tailscale",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=wayland",
+    "--filesystem=/run/tailscale",
+    "--filesystem=xdg-download"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": { "CARGO_HOME": "/run/build/cosmic-tailscale/cargo", "CARGO_NET_OFFLINE": "true" }
+  },
+  "modules": [
+    {
+      "name": "tailscale-cli",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm0755 tailscale-cli/tailscale /app/bin/tailscale",
+        "install -Dm0644 tailscale-cli-LICENSE /app/share/licenses/tailscale/LICENSE"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://pkgs.tailscale.com/stable/tailscale_1.102.4_amd64.tgz",
+          "sha256": "50748df1045e60b5b695f19f4c56b0da36c019948b440fb456b6584a50f0d8b9",
+          "only-arches": ["x86_64"],
+          "dest": "tailscale-cli"
+        },
+        {
+          "type": "archive",
+          "url": "https://pkgs.tailscale.com/stable/tailscale_1.102.4_arm64.tgz",
+          "sha256": "9dd1e6a592a014bbaea0103167ffe299adeda4ba14e078ce9c2895364f6c4c3f",
+          "only-arches": ["aarch64"],
+          "dest": "tailscale-cli"
+        },
+        {
+          "type": "file",
+          "url": "https://raw.githubusercontent.com/tailscale/tailscale/v1.102.4/LICENSE",
+          "sha256": "a7ca6186a7963a0a60740f6047760eecd7a0234e8c38bd7e1e0bbcb324bda45b",
+          "dest-filename": "tailscale-cli-LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "cosmic-tailscale",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm0644 cargo/config .cargo/config.toml",
+        "cargo --offline build --release --locked --features flatpak",
+        "install -Dm0755 target/release/cosmic-tailscale /app/bin/cosmic-tailscale",
+        "install -Dm0644 target/xdgen/app.desktop /app/share/applications/io.github.chispes.CosmicTailscale.desktop",
+        "install -Dm0644 target/xdgen/app.metainfo.xml /app/share/metainfo/io.github.chispes.CosmicTailscale.metainfo.xml",
+        "install -Dm0644 resources/icon.svg /app/share/icons/hicolor/scalable/apps/io.github.chispes.CosmicTailscale.svg",
+        "install -Dm0644 LICENSE /app/share/licenses/io.github.chispes.CosmicTailscale/LICENSE"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "..",
+          "skip": [".git", ".cargo", "vendor", "target", ".flatpak-builder", "build-dir", ".install-test"]
+        },
+        "cargo-sources.json"
+      ]
+    }
+  ]
+}
