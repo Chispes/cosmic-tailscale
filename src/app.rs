@@ -138,7 +138,7 @@ impl cosmic::Application for AppModel {
                     if let Some(ip) = peer.tailscale_ips.first() { list = list.add(self.button(format!("{}: {ip}", fl!("copy-ip")), Message::Copy(ip.clone()))); }
                     if !peer.dns_name.is_empty() { list = list.add(self.button(format!("{}: {}", fl!("copy-dns"), peer.dns_name.trim_end_matches('.')), Message::Copy(peer.dns_name.trim_end_matches('.').into()))); }
                     list = list.add(self.button(fl!("copy-name"), Message::Copy(peer.name().into())));
-                    if status.file_sharing() && peer.can_receive(status.self_node.user_id) {
+                    if status.file_sharing() && peer.can_receive() {
                         list = list.add(self.button(fl!("send-file"), Message::Send(id.clone())));
                     }
                 }
@@ -178,7 +178,7 @@ impl cosmic::Application for AppModel {
                 let auth_url = self.status.as_ref().and_then(Status::auth_link).map(str::to_owned);
                 return cosmic::task::future(async move {
                     let result = match &action {
-                        Operation::Up => tailscale::run(&["up"]).await,
+                        Operation::Up => tailscale::connect().await,
                         Operation::Down => tailscale::run(&["down"]).await,
                         Operation::Switch(id) => tailscale::run(&["switch", id]).await,
                         Operation::Exit(value) => tailscale::run(&["set", &format!("--exit-node={value}")]).await,
@@ -201,7 +201,7 @@ impl cosmic::Application for AppModel {
             Message::Send(id) => {
                 if self.busy || self.refreshing { return Task::none(); }
                 let Some(status) = self.status.as_ref().filter(|s| s.running() && s.file_sharing()) else { return Task::none(); };
-                let Some(peer) = status.peer.get(&id).filter(|p| p.can_receive(status.self_node.user_id)) else { return Task::none(); };
+                let Some(peer) = status.peer.get(&id).filter(|p| p.can_receive()) else { return Task::none(); };
                 let destination = if peer.dns_name.is_empty() { peer.name().to_owned() } else { peer.dns_name.trim_end_matches('.').to_owned() };
                 self.busy = true;
                 let title = fl!("send-file");

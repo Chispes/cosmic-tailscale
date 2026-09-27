@@ -34,6 +34,16 @@ pub async fn run_os(args: &[OsString]) -> Result<String, CliError> {
 }
 
 pub async fn run_with_timeout(args: &[OsString], duration: Duration) -> Result<String, CliError> {
+    run_command(args, Some(duration)).await
+}
+
+/// `file get --wait` remains alive until a transfer completes; dropping the
+/// subscription kills the child instead of terminating an in-progress copy.
+pub async fn run_wait(args: &[OsString]) -> Result<String, CliError> {
+    run_command(args, None).await
+}
+
+async fn run_command(args: &[OsString], duration: Option<Duration>) -> Result<String, CliError> {
     let mut cmd = if cfg!(feature = "flatpak") {
         Command::new("/app/bin/tailscale")
     } else {
@@ -46,10 +56,17 @@ pub async fn run_with_timeout(args: &[OsString], duration: Duration) -> Result<S
     let mut child = cmd.spawn().map_err(|e| if e.kind() == io::ErrorKind::NotFound { CliError::Missing } else { CliError::Failed(e.to_string()) })?;
     let mut stdout = child.stdout.take().expect("piped stdout").take(LIMIT + 1);
     let mut stderr = child.stderr.take().expect("piped stderr").take(LIMIT + 1);
-    let result = timeout(duration, async {
-        let (out, err, status) = tokio::try_join!(async { let mut buf = Vec::new(); stdout.read_to_end(&mut buf).await?; Ok::<_, io::Error>(buf) }, async { let mut buf = Vec::new(); stderr.read_to_end(&mut buf).await?; Ok::<_, io::Error>(buf) }, child.wait())?;
-        Ok::<_, io::Error>((out, err, status))
-    }).await.map_err(|_| CliError::Timeout)?.map_err(|e| CliError::Failed(e.to_string()))?;
+    let read_output = async {
+        tokio::try_join!(
+            async { let mut buf = Vec::new(); stdout.read_to_end(&mut buf).await?; Ok::<_, io::Error>(buf) },
+            async { let mut buf = Vec::new(); stderr.read_to_end(&mut buf).await?; Ok::<_, io::Error>(buf) },
+            child.wait()
+        )
+    };
+    let result = match duration {
+        Some(duration) => timeout(duration, read_output).await.map_err(|_| CliError::Timeout)?,
+        None => read_output.await,
+    }.map_err(|e| CliError::Failed(e.to_string()))?;
     let (out, err, status) = result;
     if out.len() as u64 > LIMIT || err.len() as u64 > LIMIT { return Err(CliError::TooLarge); }
     if !status.success() {
@@ -93,9 +110,7 @@ impl Peer {
     pub fn name(&self) -> &str {
         if !self.host_name.is_empty() && self.host_name != "localhost" { &self.host_name } else { self.dns_name.trim_end_matches('.') }
     }
-    pub fn can_receive(&self, self_id: u64) -> bool {
-        self.online && match self.taildrop_target { 1 => true, 0 => self.user_id != 0 && self.user_id == self_id, _ => false }
-    }
+    pub fn can_receive(&self) -> bool { self.online && self.taildrop_target == 1 }
     pub fn mullvad(&self) -> bool { self.dns_name.trim_end_matches('.').to_ascii_lowercase().ends_with(".mullvad.ts.net") }
 }
 
@@ -161,6 +176,21 @@ pub fn parse_exit_nodes(text: &str) -> Result<Vec<ExitNode>, CliError> {
     Ok(nodes)
 }
 
+fn up_is_pending(error: &CliError, state: &Status) -> bool {
+    matches!(error, CliError::Failed(message) if message.contains("timeout waiting for Tailscale service to enter a Running state"))
+        && (state.running() || state.auth_link().is_some())
+}
+
+pub async fn connect() -> Result<String, CliError> {
+    match run(&["up", "--timeout=5s"]).await {
+        Ok(output) => Ok(output),
+        Err(error @ CliError::Failed(_)) => {
+            if status().await.is_ok_and(|state| up_is_pending(&error, &state)) { Ok(String::new()) }
+            else { Err(error) }
+        }
+        Err(error) => Err(error),
+    }
+}
 pub async fn status() -> Result<Status, CliError> {
     serde_json::from_str(&run(&["status", "--json"]).await?).map_err(|e| CliError::InvalidData(e.to_string()))
 }
@@ -198,6 +228,21 @@ mod tests {
     #[test]
     fn explicit_taildrop_denial_overrides_same_owner() {
         let peer = Peer { online: true, user_id: 4, taildrop_target: 2, ..Peer::default() };
-        assert!(!peer.can_receive(4));
+        assert!(!peer.can_receive());
+    }
+    #[test]
+    fn unknown_taildrop_status_is_not_eligible_even_for_owner() {
+        let peer = Peer { online: true, user_id: 4, taildrop_target: 0, ..Peer::default() };
+        assert!(!peer.can_receive());
+    }
+    #[test]
+    fn login_timeout_is_pending_only_with_verified_authorization() {
+        let error = CliError::Failed("timeout waiting for Tailscale service to enter a Running state".into());
+        let mut state = Status { backend_state: "NeedsLogin".into(), auth_url: "https://login.tailscale.com/a/abc".into(), ..Status::default() };
+        assert!(up_is_pending(&error, &state));
+        state.auth_url = "https://evil.example/a/abc".into();
+        assert!(!up_is_pending(&error, &state));
+        state.backend_state = "Stopped".into();
+        assert!(!up_is_pending(&error, &state));
     }
 }
