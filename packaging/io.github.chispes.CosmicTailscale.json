@@ -11,7 +11,8 @@
     "--share=ipc",
     "--socket=wayland",
     "--filesystem=/run/tailscale",
-    "--filesystem=xdg-download"
+    "--filesystem=xdg-download",
+    "--system-talk-name=io.github.chispes.CosmicTailscale.Helper"
   ],
   "build-options": {
     "append-path": "/usr/lib/sdk/rust-stable/bin",

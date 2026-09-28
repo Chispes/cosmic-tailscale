@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 
 mod app;
+mod authorization;
 mod i18n;
 mod taildrop;
 mod tailscale;

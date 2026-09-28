@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=COSMIC Tailscale authentication agent
+Exec=lxpolkit
+TryExec=lxpolkit
+OnlyShowIn=COSMIC;
+NoDisplay=true

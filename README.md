@@ -1,41 +1,35 @@
-# Cosmic Tailscale
+# COSMIC Tailscale
 
-Applet para el panel COSMIC que controla una instalación **existente** de Tailscale: estado y dispositivos, conectar/desconectar, cambiar cuenta, seleccionar nodo de salida (incluidas regiones Mullvad cuando están disponibles), copiar IP, abrir la URL de autenticación y enviar/recibir archivos con Taildrop. No instala ni inicia `tailscaled`.
+Applet para COSMIC que controla el daemon Tailscale del anfitrión: conexión, cuentas, nodos de salida, equipos en línea y Taildrop.
 
-## Requisitos
+## Requisitos e instalación
 
-- COSMIC sobre Wayland y Tailscale instalado y en ejecución en el anfitrión.
-- Permisos para manejar el daemon: `tailscale status --json` debe funcionar para el usuario; para perfiles y cambios de conexión puede ser necesario configurar un operador de Tailscale (`sudo tailscale set --operator="$USER"`) según la política del equipo. Esta orden modifica los permisos del daemon: aplícala solo si administras el equipo.
-- Para recibir con Taildrop, una carpeta de Descargas definida por XDG (`xdg-user-dir DOWNLOAD`) o `$HOME/Downloads`.
+Se necesita COSMIC sobre Wayland, `tailscaled` activo y Tailscale instalado en el anfitrión. En Fedora, instala juntos los paquetes RPM `cosmic-tailscale` y `cosmic-tailscale-helper` desde un gestor de paquetes gráfico. El helper instala un servicio D-Bus del sistema, una acción Polkit y el agente gráfico lxpolkit para COSMIC. Si el agente no está activo inmediatamente después de la instalación, cierra y vuelve a iniciar sesión. El applet consulta el estado sin solicitar autorización; si Tailscale deniega una operación, muestra «Autorizar este usuario…» y Polkit solicita la aprobación del administrador. Cancelar no cambia el operador ni reintenta la operación. Tras aprobar, pulsa de nuevo Conectar o la acción deseada.
 
-El applet muestra errores si el daemon falta, el usuario no tiene permiso o una operación falla. Sin autenticación, el botón Conectar inicia Tailscale y después muestra el enlace de autorización que proporciona el daemon; esperar a completar el inicio de sesión no se considera un fallo. La lista de dispositivos y Taildrop requieren una sesión Tailscale activa y dispositivos compatibles. Los archivos recibidos quedan en Descargas; ante un nombre ocupado, se añade un sufijo numérico en vez de sobrescribirlo. La recepción funciona solo mientras el applet se ejecuta en el panel. Las transferencias interrumpidas permanecen en `Descargas/.cosmic-tailscale-incoming/active-*` y **no** se publican como archivos terminados: revísalas antes de eliminarlas. Los lotes completados `ready-*` sí se recuperan tras reiniciar el applet.
+**La autorización reemplaza al operador anterior de Tailscale y persiste en el anfitrión.** Un administrador puede revocarla con `sudo tailscale set --operator=`. No es necesario introducir ese comando para autorizar al nuevo usuario desde el applet. El servicio no admite comandos ni nombres de usuario proporcionados por el cliente.
 
-Si aparece **«Acceso a perfiles denegado»**, `tailscale status --json` todavía puede funcionar: consultar el estado no implica tener permiso para listar cuentas o modificar la conexión. El applet mantiene visibles el estado y los controles que sí están disponibles; no cambia permisos por su cuenta. Un administrador puede ejecutar en el anfitrión `sudo tailscale set --operator="$(id -un)"`, y después pulsar **Actualizar**. El icono del panel y el icono de la aplicación usan el SVG de Tailscale proporcionado para este proyecto; el del panel se integra como icono simbólico en el binario y no depende del tema de iconos. El popup utiliza tarjetas y márgenes adaptados al estilo COSMIC.
-
-## Instalación nativa
-
-Con Rust, Cargo, `just` y las dependencias de desarrollo de libcosmic para tu distribución:
+Para compilar e instalar solo el applet en `$HOME/.local`:
 
 ```sh
 just build-release
 just install
 ```
 
-El destino predeterminado es `$HOME/.local`; configura `rootdir` y `prefix` para instalar en otro lugar. En COSMIC, añade «Cosmic Tailscale» desde el selector de applets del panel. `just uninstall` elimina solo los archivos instalados por la receta. Para Fedora, `just dist` crea un tarball con dependencias vendorizadas y `rpmbuild -ba packaging/cosmic-tailscale.spec` produce un RPM que declara la dependencia de `tailscale`. La compilación RPM usa fuentes vendorizadas sin acceso a la red.
+Esta instalación local **no instala el helper privilegiado**. Para crear los RPM Fedora con el servicio del anfitrión incluido: `just dist` y `rpmbuild -ba packaging/cosmic-tailscale.spec` (coloca el tarball generado en el directorio `SOURCES` de RPM). Necesitarás Cargo, Rust, just y las dependencias de desarrollo de libcosmic.
 
 ## Flatpak
-
-El manifiesto `packaging/io.github.chispes.CosmicTailscale.json` fija las fuentes Rust y empaqueta únicamente el cliente `tailscale`; utiliza el daemon del anfitrión mediante `/run/tailscale/tailscaled.sock`. Permisos: Wayland, IPC, `/run/tailscale` y Descargas. Los selectores de archivos y las notificaciones usan portales. Es necesario tener instalado `com.system76.Cosmic.BaseApp//stable`, el runtime/SDK Freedesktop 25.08 y la extensión Rust estable de ese SDK.
 
 ```sh
 flatpak-builder --user --install --force-clean build-dir packaging/io.github.chispes.CosmicTailscale.json
 flatpak run io.github.chispes.CosmicTailscale
 ```
 
-Si el daemon usa un socket distinto, el manifiesto requiere una adaptación explícita; el Flatpak no administra el servicio de sistema. La compilación local sobre una instalación Flatpak sin capacidad de restaurar etiquetas SELinux de BaseApp puede fallar en `flatpak build-init` con `lsetxattr(security.selinux): Operation not supported`; comprueba el host de compilación antes de distribuir el resultado. El manifiesto obtiene el código fuente de una revisión fijada del repositorio público.
+El Flatpak incluye el cliente `tailscale` y usa el socket del daemon del anfitrión. Solo recibe acceso D-Bus al nombre del helper, no privilegios generales: **instala por separado el RPM `cosmic-tailscale-helper` en el anfitrión desde un gestor gráfico de paquetes** para disponer del diálogo de administrador. Instalar únicamente el Flatpak no puede instalar servicios privilegiados ni cambiar el operador. Se necesitan `com.system76.Cosmic.BaseApp//stable`, Freedesktop 25.08 y la extensión Rust estable del SDK. Los selectores de archivos y las notificaciones usan portales.
 
-**Todavía no está publicado en COSMIC Store.** El [repositorio COSMIC Flatpak](https://github.com/pop-os/cosmic-flatpak) acepta applets que no encajan en Flathub. Su [plantilla de PR](https://github.com/pop-os/cosmic-flatpak/blob/master/.github/PULL_REQUEST_TEMPLATE.md) exige declarar el código generado con IA en los mensajes de commit; advierte que una contribución parcial o totalmente redactada con IA puede cerrarse sin comentarios, y exige que quien la presente comprenda todos los cambios, pueda responder a la revisión y certifique el Developer Certificate of Origin. Este proyecto ha usado asistencia de IA. Antes de solicitar inclusión, una persona responsable debe revisar el código y verificar el Flatpak completo. Flathub tiene una [política diferente](https://docs.flathub.org/docs/for-app-authors/requirements#generative-ai-policy), que no determina la admisión en COSMIC Store.
+## Uso
+
+Los equipos en línea aparecen en filas compactas: Detalles muestra IP, DNS y acciones de copia/Taildrop solo para el equipo abierto. Cuentas y nodos de salida se despliegan bajo demanda. El enlace de autorización de Tailscale se abre solo cuando el daemon proporciona una URL HTTPS válida. Los archivos Taildrop recibidos se guardan en Descargas sin sobrescribir archivos existentes.
 
 ## Desarrollo
 
-`cargo test --locked` ejecuta las pruebas del CLI y del receptor; `just check` ejecuta Clippy. `just run` inicia el applet nativo. Las traducciones Fluent están en `i18n/en` e `i18n/es`. Licencia MIT; el binario de Tailscale incluido en el Flatpak conserva su propia licencia en `/app/share/licenses/tailscale/`.
+`cargo test --locked` ejecuta las pruebas; `just check` ejecuta Clippy. `just run` inicia el applet nativo. Las traducciones Fluent están en `i18n/en` e `i18n/es`. Licencia MIT; el cliente Tailscale incluido en Flatpak conserva su propia licencia.

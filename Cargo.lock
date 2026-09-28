@@ -978,6 +978,7 @@ dependencies = [
  "dirs",
  "i18n-embed",
  "i18n-embed-fl",
+ "libc",
  "libcosmic",
  "rust-embed",
  "serde",
@@ -986,6 +987,7 @@ dependencies = [
  "tokio",
  "url",
  "xdgen",
+ "zbus",
 ]
 
 [[package]]

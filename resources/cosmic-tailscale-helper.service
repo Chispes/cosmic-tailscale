@@ -1,0 +1,12 @@
+[Unit]
+Description=COSMIC Tailscale operator authorization helper
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=io.github.chispes.CosmicTailscale.Helper
+ExecStart=/usr/libexec/cosmic-tailscale-helper
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -29,8 +29,21 @@ auth-pending = Waiting for Tailscale to confirm authorization…
 action-complete = Updated
 error-missing = Install Tailscale on Fedora first (dnf install tailscale).
 error-daemon = Start the host daemon: systemctl enable --now tailscaled.
-error-operator = Profiles access denied. In a host terminal run: sudo tailscale set --operator=$(id -un)
-error-access = Tailscale denied this operation. If you administer this device, enable your user as operator in a terminal: sudo tailscale set --operator=$(id -un). Then refresh.
+error-operator = Tailscale denied access to profiles. Authorize this user below.
+error-access = Tailscale denied the operation. Authorize this user below.
 error-unsupported = This Tailscale version does not support the requested command.
 error-timeout = Tailscale did not respond in time.
 error-command = Tailscale error
+operator-warning = Administrator approval persistently replaces the previous operator on this computer. An administrator can revoke access with sudo tailscale set --operator=.
+authorize-operator = Authorize this user…
+operator-enabled = Operator authorized. Press Connect or retry the action.
+operator-cancelled = Administrator authorization was denied or cancelled.
+operator-timeout = Authorization timed out.
+operator-failed = Authorization failed
+helper-missing = Install the native cosmic-tailscale-helper package on the host to enable administrator authorization. Flatpak alone cannot grant this permission. If no dialog appears after installation, sign out and back in.
+show-accounts = Accounts ▸
+hide-accounts = Accounts ▾
+show-exits = Exit nodes ▸
+hide-exits = Exit nodes ▾
+details = Details
+hide-details = Hide details
